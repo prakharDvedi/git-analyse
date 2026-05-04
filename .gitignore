@@ -1,2 +1,14 @@
-.venv
-__init__.py
+.venv/
+.env
+.env.*
+
+__pycache__/
+*.py[cod]
+*.pyo
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+*.sqlite3
+*.db
