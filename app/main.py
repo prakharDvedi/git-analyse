@@ -9,6 +9,7 @@ app = FastAPI(title=settings.app_name)
 
 app.include_router(health_router)
 
+
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the CodeReviewer API"}
+    return {"message": "GitAnalyse API"}

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -7,16 +5,14 @@ from app.core.settings import get_settings
 
 settings = get_settings()
 
-# Layer 1 : sync SQLAlchemy with SQLite
 engine = create_engine(
     settings.database_url,
-    future=True,
     connect_args={"check_same_thread": False}
     if settings.database_url.startswith("sqlite")
     else {},
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def get_db():
@@ -25,4 +21,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
