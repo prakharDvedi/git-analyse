@@ -88,9 +88,9 @@ def generate_summary(score: int, findings: list) -> str:
 
     if any("secret" in f.lower() for f in findings):
         base += " Security hygiene needs immediate attention."
-    if any("test" in f.lower() for f in findings):
+    if any("no test" in f.lower() for f in findings):
         base += " Testing is a major gap."
-    if any("ci" in f.lower() for f in findings):
+    if any("no ci" in f.lower() for f in findings):
         base += " CI/CD should be configured."
 
     return base
