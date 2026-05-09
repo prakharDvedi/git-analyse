@@ -1,4 +1,5 @@
 from pydantic import BaseModel, HttpUrl
+from typing import Optional
 
 
 class ReviewRequest(BaseModel):
@@ -7,7 +8,7 @@ class ReviewRequest(BaseModel):
 
 class FileEntry(BaseModel):
     path: str
-    type: str  # "file" | "dir"
+    type: str
     size: int | None = None
 
 
@@ -23,3 +24,16 @@ class RepoTreeResponse(BaseModel):
     total_returned: int
     truncated: bool
     files: list[FileEntry]
+
+
+class DimensionResult(BaseModel):
+    score: int
+    findings: list[str]
+    flagged_files: list[str]
+
+
+class ReviewResponse(BaseModel):
+    id: int
+    repo_url: str
+    status: str
+    report: Optional[dict] = None
