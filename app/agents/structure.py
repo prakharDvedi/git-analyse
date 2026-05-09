@@ -1,40 +1,62 @@
 from app.agents.state import ReviewState
+from app.agents.llm import call_llm
+
+SYSTEM_PROMPT = """You are a software architecture expert analyzing code.
+Respond with JSON containing:
+- score: integer 0-100
+- findings: array of strings (specific observations)
+- flagged_files: array of files with issues"""
+
+
+STRUCTURE_PROMPT = """Analyze the project structure:
+
+{file_list}
+
+Check for:
+1. Folder organization (src/, lib/, app/, services/)
+2. Separation of concerns
+3. File naming conventions
+4. Module organization
+5. API/routes pattern
+6. Database/access layer separation
+
+Respond with JSON:
+{{
+  "score": 80,
+  "findings": ["finding 1", "finding 2"],
+  "flagged_files": []
+}}
+
+Score guidelines:
+- 90-100: Excellent architecture, clear separation
+- 70-89: Good structure, some inconsistencies
+- 50-69: Needs organizational improvement
+- 0-49: Poor organization, hard to navigate
+
+Return ONLY valid JSON."""
 
 
 def structure_agent(state: ReviewState) -> ReviewState:
     file_map = state["file_map"]
     files = list(file_map.keys())
 
-    issues = []
-    flagged = []
-    score = 70
+    file_list = "\n".join(files[:50])
 
-    folders = set()
-    for f in files:
-        parts = f.split("/")
-        if len(parts) > 1:
-            folders.add(parts[0])
+    try:
+        result = call_llm(
+            STRUCTURE_PROMPT.format(file_list=file_list),
+            system_prompt=SYSTEM_PROMPT
+        )
 
-    folders_to_check = {"src", "lib", "app", "api", "services", "routes", "models", "utils", "tests"}
-    found_folders = folders & folders_to_check
+        import json
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', result)
+        if json_match:
+            findings = json.loads(json_match.group())
+        else:
+            findings = {"score": 70, "findings": ["Unable to parse LLM response"], "flagged_files": []}
+    except Exception as e:
+        findings = {"score": 70, "findings": [f"LLM error: {str(e)}"], "flagged_files": []}
 
-    if found_folders:
-        issues.append(f"Found organized folders: {', '.join(found_folders)}")
-        score += 10
-    else:
-        issues.append("No common source folders found (src/lib/app)")
-        score -= 10
-
-    has_tests = any("test" in f.lower() or "spec" in f.lower() for f in files)
-    if has_tests:
-        issues.append("Tests folder present")
-    else:
-        issues.append("No test files detected in repo")
-        flagged.append("root")
-
-    state["structure_findings"] = {
-        "score": max(0, min(100, score)),
-        "findings": issues,
-        "flagged_files": flagged
-    }
+    state["structure_findings"] = findings
     return state

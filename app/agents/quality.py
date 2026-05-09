@@ -1,51 +1,62 @@
-import re
 from app.agents.state import ReviewState
+from app.agents.llm import call_llm
+
+SYSTEM_PROMPT = """You are a code quality expert analyzing code.
+Respond with JSON containing:
+- score: integer 0-100
+- findings: array of strings (specific issues)
+- flagged_files: array of files with issues"""
 
 
-def count_lines(code: str) -> int:
-    return len([l for l in code.split("\n") if l.strip() and not l.strip().startswith("#")])
+QUALITY_PROMPT = """Analyze this code for quality issues:
+
+{file_content}
+
+Check for:
+1. Function complexity (too long, nested)
+2. Code duplication
+3. Poor naming conventions
+4. Missing documentation
+5. Magic numbers/strings
+6. Error handling issues
+
+Respond with JSON:
+{{
+  "score": 75,
+  "findings": ["issue 1", "issue 2"],
+  "flagged_files": ["file.py"]
+}}
+
+Score guidelines:
+- 90-100: Excellent, production-ready code
+- 70-89: Good, minor improvements possible
+- 50-69: Needs refactoring
+- 0-49: Significant issues, hard to maintain
+
+Return ONLY valid JSON."""
 
 
 def quality_agent(state: ReviewState) -> ReviewState:
     file_map = state["file_map"]
 
-    issues = []
-    flagged = []
-    score = 70
-    total_files = len(file_map)
-    total_lines = 0
-    long_functions = 0
+    sample_files = list(file_map.items())[:10]
+    file_content = "\n\n".join([f"=== {path} ===\n{content}" for path, content in sample_files])
 
-    for path, content in file_map.items():
-        if not path.endswith((".py", ".js", ".ts", ".tsx")):
-            continue
+    try:
+        result = call_llm(
+            QUALITY_PROMPT.format(file_content=file_content),
+            system_prompt=SYSTEM_PROMPT
+        )
 
-        lines = count_lines(content)
-        total_lines += lines
-
-        if lines > 100:
-            flagged.append(path)
-            long_functions += 1
-
-    if total_files > 0:
-        avg_lines = total_lines // total_files
-        if avg_lines > 50:
-            issues.append(f"Average file length: {avg_lines} lines (could be split)")
+        import json
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', result)
+        if json_match:
+            findings = json.loads(json_match.group())
         else:
-            issues.append(f"Files are reasonably sized (avg {avg_lines} lines)")
-            score += 10
+            findings = {"score": 70, "findings": ["Unable to parse LLM response"], "flagged_files": []}
+    except Exception as e:
+        findings = {"score": 70, "findings": [f"LLM error: {str(e)}"], "flagged_files": []}
 
-    if long_functions > 0:
-        issues.append(f"{long_functions} files over 100 lines - consider splitting")
-
-    has_readme = any("readme" in f.lower() for f in file_map.keys())
-    if not has_readme:
-        issues.append("No README found")
-        score -= 10
-
-    state["quality_findings"] = {
-        "score": max(0, min(100, score)),
-        "findings": issues,
-        "flagged_files": flagged
-    }
+    state["quality_findings"] = findings
     return state
