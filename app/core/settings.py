@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # DB config
     database_url: str = "sqlite:///./gitanalyse.db"
 
+    # HuggingFace
+    hf_token: Optional[str] = None
+
 
 @lru_cache
 def get_settings() -> Settings:
