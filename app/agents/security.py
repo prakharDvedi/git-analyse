@@ -1,50 +1,38 @@
 from app.agents.state import ReviewState
 from app.agents.llm import call_llm
 
-SYSTEM_PROMPT = """You are a security expert analyzing code.
-Respond with JSON containing:
-- score: integer 0-100
-- findings: array of strings (specific issues found)
-- flagged_files: array of file paths with issues"""
+SYSTEM_PROMPT = """You are an expert security researcher reviewing code for vulnerabilities.
+Be specific. Find REAL issues. Return ONLY JSON."""
 
 
-SECURITY_PROMPT = """Analyze this code for security vulnerabilities:
+SECURITY_PROMPT = """Review this code for security vulnerabilities. Look for:
 
-{file_content}
+1. Hardcoded secrets: API keys, tokens, passwords, AWS credentials
+2. SQL injection: string concatenation in queries
+3. XSS: unsanitized user input in HTML/JS
+4. Auth bypass: missing checks, weak validation
+5. Command injection: os.system, subprocess with user input
+6. Path traversal: unsafe file access
 
-For each file, check for:
-1. Hardcoded secrets, API keys, tokens, passwords
-2. SQL injection vulnerabilities
-3. XSS vulnerabilities
-4. Authentication issues
-5. Unsafe inputs
-6. Exposed credentials
+For each file:
+{files}
 
-Respond with JSON:
-{{
-  "score": 75,
-  "findings": ["issue 1", "issue 2"],
-  "flagged_files": ["file.py", "auth.js"]
-}}
+Return JSON format:
+{{"score": integer 0-100, "findings": ["specific issue in file:line", ...], "flagged_files": ["path", ...]}}
 
-Score guidelines:
-- 90-100: No issues found
-- 70-89: Minor issues, best practices not followed
-- 50-69: Moderate security concerns
-- 0-49: Critical vulnerabilities present
-
-Return ONLY valid JSON."""
+Be SPECIFIC: "SQL injection in db.py:23" not "SQL injection found"
+Return ONLY valid JSON, no explanation."""
 
 
 def security_agent(state: ReviewState) -> ReviewState:
     file_map = state["file_map"]
 
-    sample_files = list(file_map.items())[:10]
-    file_content = "\n\n".join([f"=== {path} ===\n{content}" for path, content in sample_files])
+    sample_files = list(file_map.items())[:8]
+    files = "\n".join([f"--- {path} ---\n{content[:1500]}" for path, content in sample_files])
 
     try:
         result = call_llm(
-            SECURITY_PROMPT.format(file_content=file_content),
+            SECURITY_PROMPT.format(files=files),
             system_prompt=SYSTEM_PROMPT
         )
 
@@ -54,9 +42,9 @@ def security_agent(state: ReviewState) -> ReviewState:
         if json_match:
             findings = json.loads(json_match.group())
         else:
-            findings = {"score": 70, "findings": ["Unable to parse LLM response"], "flagged_files": []}
+            findings = {"score": 70, "findings": ["Parse error"], "flagged_files": []}
     except Exception as e:
-        findings = {"score": 70, "findings": [f"LLM error: {str(e)}"], "flagged_files": []}
+        findings = {"score": 70, "findings": [f"Error: {str(e)}"], "flagged_files": []}
 
     state["security_findings"] = findings
     return state

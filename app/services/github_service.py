@@ -1,16 +1,22 @@
 import base64
 import requests
 
+from app.core.settings import get_settings
+
 GITHUB_API_BASE = "https://api.github.com"
 MAX_FILES = 50
 
 
 def _headers() -> dict:
-    return {
+    settings = get_settings()
+    headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "CodeReviewer",
     }
+    if settings.github_token:
+        headers["Authorization"] = f"token {settings.github_token}"
+    return headers
 
 
 def get_default_branch(owner: str, repo: str) -> str:
