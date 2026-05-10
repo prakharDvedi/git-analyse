@@ -56,14 +56,18 @@ export const api = {
     },
   },
 
-  analyze: {
-    create: (repoUrl: string) =>
-      fetchApi<{ id: number; repo_url: string; status: string; report: unknown }>("/analyze", {
+  review: {
+    tree: (repoUrl: string) =>
+      fetchApi<{
+        owner: string;
+        repo: string;
+        total_discovered: number;
+        total_returned: number;
+        truncated: boolean;
+        files: Array<{ path: string; type: string; size?: number }>;
+      }>("/review/tree", {
         method: "POST",
         body: JSON.stringify({ repo_url: repoUrl }),
       }),
-
-    get: (id: number) =>
-      fetchApi<{ id: number; repo_url: string; status: string; report: unknown }>(`/analyze/${id}`),
   },
 };

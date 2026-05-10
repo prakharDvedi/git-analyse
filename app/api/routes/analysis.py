@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.agents.pipeline import run_review
 from app.api.deps import get_current_user
@@ -12,7 +12,6 @@ router = APIRouter(prefix="/analyze", tags=["analyze"])
 @router.post("", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
 def start_analysis(
     payload: AnalyzeRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     try:

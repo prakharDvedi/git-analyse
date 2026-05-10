@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
@@ -11,7 +10,14 @@ export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
+  const [result, setResult] = useState<{
+    owner: string;
+    repo: string;
+    total_discovered: number;
+    total_returned: number;
+    truncated: boolean;
+    files: Array<{ path: string; size?: number }>;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,16 +25,14 @@ export default function Home() {
 
     setLoading(true);
     setError("");
+    setResult(null);
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        router.push("/auth");
-        return;
-      }
-
-      const result = await api.analyze.create(repoUrl);
-      router.push(`/report/${result.id}`);
+      const tree = await api.review.tree(repoUrl);
+      setResult({
+        ...tree,
+        files: tree.files.map((f) => ({ path: f.path, size: f.size })),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
@@ -63,9 +67,26 @@ export default function Home() {
 
         <div className="mt-8 text-center">
           <Link href="/auth" className="text-sm text-slate-600 hover:text-slate-900">
-            Sign in to save your analyses
+            Sign in for protected routes
           </Link>
         </div>
+
+        {result && (
+          <section className="mt-10 rounded-md border border-slate-200 bg-white p-5">
+            <h2 className="text-lg font-semibold text-slate-900">
+              {result.owner}/{result.repo}
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Found {result.total_discovered} files, returned {result.total_returned}
+              {result.truncated ? " (truncated to 50)." : "."}
+            </p>
+            <ul className="mt-4 max-h-72 space-y-1 overflow-auto text-sm text-slate-700">
+              {result.files.slice(0, 25).map((f) => (
+                <li key={f.path}>{f.path}</li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </main>
   );

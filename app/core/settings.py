@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "GitAnalyse"
+    environment: str = "dev"
 
     # JWT config
     jwt_secret: str = "dev-insecure-change-me"
@@ -30,4 +31,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    if settings.environment.lower() != "dev" and settings.jwt_secret == "dev-insecure-change-me":
+        raise ValueError("JWT_SECRET must be set in non-dev environments")
+    return settings

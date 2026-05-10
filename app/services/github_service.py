@@ -5,6 +5,7 @@ from app.core.settings import get_settings
 
 GITHUB_API_BASE = "https://api.github.com"
 MAX_FILES = 50
+MAX_FILE_BYTES = 200_000
 
 
 def _headers() -> dict:
@@ -52,6 +53,13 @@ def get_file_content(owner: str, repo: str, path: str) -> str:
     resp.raise_for_status()
 
     payload = resp.json()
+    if isinstance(payload, list):
+        raise ValueError(f"Path is not a file: {path}")
+
+    file_size = payload.get("size")
+    if isinstance(file_size, int) and file_size > MAX_FILE_BYTES:
+        raise ValueError(f"File too large ({file_size} bytes): {path}")
+
     if payload.get("encoding") != "base64":
         raise ValueError(f"Unsupported file encoding for: {path}")
 
