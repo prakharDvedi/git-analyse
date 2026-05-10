@@ -1,22 +1,32 @@
 .venv/
+.python-version
 .env
 .env.*
 
 __pycache__/
 *.py[cod]
 *.pyo
+*.py,cover
 
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+coverage/
+htmlcov/
 
 *.sqlite3
 *.db
 node_modules/
+.next/
+out/
 dist/
 build/
 *.egg-info/
 *.log
 .DS_Store
 .idea/
-.vscode/ 
+.vscode/
+
+# Local tool state
+.claude/settings.local.json
