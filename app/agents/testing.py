@@ -12,6 +12,10 @@ TESTING_PROMPT = """Analyze this codebase for testing:
 
 {files}
 
+Score against test strategy fundamentals:
+- Unit, integration, and end-to-end coverage signals
+- CI enforcement and deterministic test habits
+
 Check for:
 1. Test files (test_*.py, *_test.py, spec_*.js, *.test.js)
 2. Test directories (__tests__/, tests/, test/)
@@ -19,12 +23,14 @@ Check for:
 4. Test coverage tools
 5. Testing frameworks used
 6. Mock/fixture patterns
+7. Critical untested risk areas inferred from file structure
 
 Respond with JSON:
 {{
   "score": 50,
-  "findings": ["finding 1", "finding 2"],
-  "flagged_files": ["test_file.js"]
+  "findings": ["specific testing gap and impact", "specific testing gap and impact"],
+  "flagged_files": ["test_file.js"],
+  "recommendations": ["highest leverage tests to add first", "CI/testing workflow improvement"]
 }}
 
 Score guidelines:
@@ -32,6 +38,10 @@ Score guidelines:
 - 70-89: Some tests present, CI configured
 - 50-69: Limited tests, CI missing
 - 0-49: No tests found, no CI
+
+Rules:
+- Do not output placeholders.
+- Prioritize concrete test additions over vague advice.
 
 Return ONLY valid JSON."""
 
