@@ -22,6 +22,15 @@ export async function fetchApi<T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Request failed" }));
+    if (Array.isArray(error.detail)) {
+      const message = error.detail
+        .map((d: { loc?: Array<string | number>; msg?: string }) => {
+          const loc = Array.isArray(d.loc) ? d.loc.join(".") : "body";
+          return `${loc}: ${d.msg ?? "Invalid value"}`;
+        })
+        .join(" | ");
+      throw new Error(message || "Validation failed");
+    }
     throw new Error(error.detail || "Request failed");
   }
 
@@ -66,6 +75,14 @@ export const api = {
         truncated: boolean;
         files: Array<{ path: string; type: string; size?: number }>;
       }>("/review/tree", {
+        method: "POST",
+        body: JSON.stringify({ repo_url: repoUrl }),
+      }),
+  },
+
+  analyze: {
+    create: (repoUrl: string) =>
+      fetchApi<{ id: number; repo_url: string; status: string; report: unknown }>("/analyze", {
         method: "POST",
         body: JSON.stringify({ repo_url: repoUrl }),
       }),

@@ -21,10 +21,31 @@ export default function Auth() {
     setError("");
 
     try {
+      const cleanEmail = email.trim();
+      const cleanUsername = username.trim();
+      const cleanPassword = password;
+
+      if (!cleanEmail) {
+        setError("Email is required");
+        return;
+      }
+      if (!cleanPassword) {
+        setError("Password is required");
+        return;
+      }
+      if (mode === "register" && !cleanUsername) {
+        setError("Username is required");
+        return;
+      }
+
       if (mode === "login") {
-        await api.auth.login({ email, password });
+        await api.auth.login({ email: cleanEmail, password: cleanPassword });
       } else {
-        await api.auth.register({ email, username, password });
+        await api.auth.register({
+          email: cleanEmail,
+          username: cleanUsername,
+          password: cleanPassword,
+        });
       }
       router.push("/dashboard");
     } catch (err) {

@@ -14,13 +14,25 @@ SECURITY_PROMPT = """Review this code for security vulnerabilities. Look for:
 5. Command injection: os.system, subprocess with user input
 6. Path traversal: unsafe file access
 
+Score against secure engineering fundamentals:
+- Input validation and sanitization
+- Authentication/authorization boundaries
+- Secrets management
+- Safe data access patterns
+
 For each file:
 {files}
 
 Return JSON format:
-{{"score": integer 0-100, "findings": ["specific issue in file:line", ...], "flagged_files": ["path", ...]}}
+{{
+  "score": integer 0-100,
+  "findings": ["specific issue in file:line or file section", ...],
+  "flagged_files": ["path", ...],
+  "recommendations": ["concrete mitigation step", ...]
+}}
 
 Be SPECIFIC: "SQL injection in db.py:23" not "SQL injection found"
+If no concrete exploit pattern is visible, do not claim one.
 Return ONLY valid JSON, no explanation."""
 
 

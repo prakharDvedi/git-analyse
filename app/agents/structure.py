@@ -12,6 +12,11 @@ STRUCTURE_PROMPT = """Analyze the project structure:
 
 {file_list}
 
+Score against these engineering principles:
+- Correctness, Readability, Maintainability, Security by design, Operational simplicity
+- Layered architecture (Controller -> Service -> Repository -> Data)
+- High cohesion, low coupling
+
 Check for:
 1. Folder organization (src/, lib/, app/, services/)
 2. Separation of concerns
@@ -19,12 +24,20 @@ Check for:
 4. Module organization
 5. API/routes pattern
 6. Database/access layer separation
+7. Signs of tight coupling or cross-layer leakage
 
 Respond with JSON:
 {{
   "score": 80,
-  "findings": ["finding 1", "finding 2"],
-  "flagged_files": []
+  "findings": [
+    "specific issue with file path and impact",
+    "specific issue with file path and impact"
+  ],
+  "flagged_files": ["path/file.py"],
+  "recommendations": [
+    "actionable change with expected impact",
+    "actionable change with expected impact"
+  ]
 }}
 
 Score guidelines:
@@ -32,6 +45,11 @@ Score guidelines:
 - 70-89: Good structure, some inconsistencies
 - 50-69: Needs organizational improvement
 - 0-49: Poor organization, hard to navigate
+
+Rules:
+- Every finding must mention a file path when possible.
+- Do not invent vulnerabilities or files not present in the input.
+- If evidence is weak, state uncertainty explicitly.
 
 Return ONLY valid JSON."""
 

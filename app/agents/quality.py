@@ -12,6 +12,9 @@ QUALITY_PROMPT = """Analyze this code for quality issues:
 
 {file_content}
 
+Score against maintainability fundamentals:
+- KISS, DRY, clear naming, small focused functions, low nesting, explicitness
+
 Check for:
 1. Function complexity (too long, nested)
 2. Code duplication
@@ -19,12 +22,14 @@ Check for:
 4. Missing documentation
 5. Magic numbers/strings
 6. Error handling issues
+7. Readability risks and unclear intent
 
 Respond with JSON:
 {{
   "score": 75,
-  "findings": ["issue 1", "issue 2"],
-  "flagged_files": ["file.py"]
+  "findings": ["specific issue with evidence and impact", "specific issue with evidence and impact"],
+  "flagged_files": ["file.py"],
+  "recommendations": ["specific refactor or cleanup action", "specific refactor or cleanup action"]
 }}
 
 Score guidelines:
@@ -32,6 +37,10 @@ Score guidelines:
 - 70-89: Good, minor improvements possible
 - 50-69: Needs refactoring
 - 0-49: Significant issues, hard to maintain
+
+Rules:
+- Tie findings to concrete files.
+- Avoid generic placeholders like "issue 1".
 
 Return ONLY valid JSON."""
 
