@@ -1,5 +1,8 @@
 from app.agents.state import ReviewState
 from app.agents.llm import call_llm
+from app.core.settings import get_settings
+
+settings = get_settings()
 
 SYSTEM_PROMPT = """You are a software architecture expert analyzing code.
 Respond with JSON containing:
@@ -63,7 +66,8 @@ def structure_agent(state: ReviewState) -> ReviewState:
     try:
         result = call_llm(
             STRUCTURE_PROMPT.format(file_list=file_list),
-            system_prompt=SYSTEM_PROMPT
+            system_prompt=SYSTEM_PROMPT,
+            model=settings.llm_model_structure,
         )
 
         import json

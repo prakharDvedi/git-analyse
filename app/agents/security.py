@@ -1,5 +1,8 @@
 from app.agents.state import ReviewState
 from app.agents.llm import call_llm
+from app.core.settings import get_settings
+
+settings = get_settings()
 
 SYSTEM_PROMPT = """You are an expert security researcher reviewing code for vulnerabilities.
 Be specific. Find REAL issues. Return ONLY JSON."""
@@ -45,7 +48,8 @@ def security_agent(state: ReviewState) -> ReviewState:
     try:
         result = call_llm(
             SECURITY_PROMPT.format(files=files),
-            system_prompt=SYSTEM_PROMPT
+            system_prompt=SYSTEM_PROMPT,
+            model=settings.llm_model_security,
         )
 
         import json
