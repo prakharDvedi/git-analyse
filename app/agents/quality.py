@@ -1,5 +1,5 @@
 from app.agents.state import ReviewState
-from app.agents.llm import call_llm
+from app.agents.validation import run_validated_agent_call
 from app.core.settings import get_settings
 
 settings = get_settings()
@@ -30,7 +30,15 @@ Check for:
 Respond with JSON:
 {{
   "score": 75,
-  "findings": ["specific issue with evidence and impact", "specific issue with evidence and impact"],
+  "findings": [
+    {{
+      "file": "path/to/file",
+      "reason": "specific issue with impact",
+      "evidence_snippet": "code evidence",
+      "severity": "low|medium|high|critical",
+      "confidence": 0.0
+    }}
+  ],
   "flagged_files": ["file.py"],
   "recommendations": ["specific refactor or cleanup action", "specific refactor or cleanup action"]
 }}
@@ -55,21 +63,18 @@ def quality_agent(state: ReviewState) -> ReviewState:
     file_content = "\n\n".join([f"=== {path} ===\n{content}" for path, content in sample_files])
 
     try:
-        result = call_llm(
-            QUALITY_PROMPT.format(file_content=file_content),
+        findings = run_validated_agent_call(
+            prompt=QUALITY_PROMPT.format(file_content=file_content),
             system_prompt=SYSTEM_PROMPT,
             model=settings.llm_model_quality,
         )
-
-        import json
-        import re
-        json_match = re.search(r'\{[\s\S]*\}', result)
-        if json_match:
-            findings = json.loads(json_match.group())
-        else:
-            findings = {"score": 70, "findings": ["Unable to parse LLM response"], "flagged_files": []}
     except Exception as e:
-        findings = {"score": 70, "findings": [f"LLM error: {str(e)}"], "flagged_files": []}
+        findings = {
+            "score": 40,
+            "findings": [],
+            "flagged_files": [],
+            "recommendations": [f"Quality review failed: {str(e)}"],
+        }
 
     state["quality_findings"] = findings
     return state

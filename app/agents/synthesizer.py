@@ -213,10 +213,10 @@ def _normalize_report_shape(report: dict, files_analyzed: int) -> dict:
 
 def generate_fixes(structure: dict, security: dict, quality: dict, testing: dict) -> list:
     fixes = []
-    sf = security.get("findings", []) or []
-    tf = testing.get("findings", []) or []
-    qf = quality.get("findings", []) or []
-    stf = structure.get("findings", []) or []
+    sf = _finding_texts(security.get("findings", []) or [])
+    tf = _finding_texts(testing.get("findings", []) or [])
+    qf = _finding_texts(quality.get("findings", []) or [])
+    stf = _finding_texts(structure.get("findings", []) or [])
 
     rec_candidates = (
         (structure.get("recommendations", []) or [])
@@ -265,6 +265,7 @@ def generate_fixes(structure: dict, security: dict, quality: dict, testing: dict
 
 
 def generate_summary(score: int, findings: list) -> str:
+    finding_texts = _finding_texts(findings)
     if score >= 80:
         base = "Excellent codebase. Well structured with good practices."
     elif score >= 60:
@@ -274,11 +275,11 @@ def generate_summary(score: int, findings: list) -> str:
     else:
         base = "Requires significant improvements before production."
 
-    if any("secret" in f.lower() for f in findings):
+    if any("secret" in f.lower() for f in finding_texts):
         base += " Security hygiene needs immediate attention."
-    if any("no test" in f.lower() for f in findings):
+    if any("no test" in f.lower() for f in finding_texts):
         base += " Testing is a major gap."
-    if any("no ci" in f.lower() for f in findings):
+    if any("no ci" in f.lower() for f in finding_texts):
         base += " CI/CD should be configured."
 
     return base
@@ -320,3 +321,15 @@ def build_mega_verdict(total: int, structure: dict, security: dict, quality: dic
         return f"Usable foundation but not production-ready. Resolve weakest dimensions before feature acceleration ({weak_dims})."
     return f"High risk for maintainability and reliability. Focus immediately on weakest dimensions ({weak_dims}) before expansion."
 
+
+def _finding_texts(findings: list) -> list[str]:
+    texts: list[str] = []
+    for item in findings:
+        if isinstance(item, str):
+            texts.append(item)
+            continue
+        if isinstance(item, dict):
+            reason = item.get("reason")
+            if isinstance(reason, str) and reason.strip():
+                texts.append(reason.strip())
+    return texts

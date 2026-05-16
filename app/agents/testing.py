@@ -1,5 +1,5 @@
 from app.agents.state import ReviewState
-from app.agents.llm import call_llm
+from app.agents.validation import run_validated_agent_call
 from app.core.settings import get_settings
 
 settings = get_settings()
@@ -31,7 +31,15 @@ Check for:
 Respond with JSON:
 {{
   "score": 50,
-  "findings": ["specific testing gap and impact", "specific testing gap and impact"],
+  "findings": [
+    {{
+      "file": "path/to/file-or-module",
+      "reason": "specific testing gap and impact",
+      "evidence_snippet": "test signal or missing pattern evidence",
+      "severity": "low|medium|high|critical",
+      "confidence": 0.0
+    }}
+  ],
   "flagged_files": ["test_file.js"],
   "recommendations": ["highest leverage tests to add first", "CI/testing workflow improvement"]
 }}
@@ -56,21 +64,18 @@ def testing_agent(state: ReviewState) -> ReviewState:
     file_list = "\n".join(files)
 
     try:
-        result = call_llm(
-            TESTING_PROMPT.format(files=file_list),
+        findings = run_validated_agent_call(
+            prompt=TESTING_PROMPT.format(files=file_list),
             system_prompt=SYSTEM_PROMPT,
             model=settings.llm_model_testing,
         )
-
-        import json
-        import re
-        json_match = re.search(r'\{[\s\S]*\}', result)
-        if json_match:
-            findings = json.loads(json_match.group())
-        else:
-            findings = {"score": 30, "findings": ["Unable to parse LLM response"], "flagged_files": []}
     except Exception as e:
-        findings = {"score": 30, "findings": [f"LLM error: {str(e)}"], "flagged_files": []}
+        findings = {
+            "score": 40,
+            "findings": [],
+            "flagged_files": [],
+            "recommendations": [f"Testing review failed: {str(e)}"],
+        }
 
     state["testing_findings"] = findings
     return state

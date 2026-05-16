@@ -1,5 +1,5 @@
 from app.agents.state import ReviewState
-from app.agents.llm import call_llm
+from app.agents.validation import run_validated_agent_call
 from app.core.settings import get_settings
 
 settings = get_settings()
@@ -33,8 +33,13 @@ Respond with JSON:
 {{
   "score": 80,
   "findings": [
-    "specific issue with file path and impact",
-    "specific issue with file path and impact"
+    {{
+      "file": "path/to/file",
+      "reason": "specific issue with impact",
+      "evidence_snippet": "file naming/layout evidence",
+      "severity": "low|medium|high|critical",
+      "confidence": 0.0
+    }}
   ],
   "flagged_files": ["path/file.py"],
   "recommendations": [
@@ -64,21 +69,18 @@ def structure_agent(state: ReviewState) -> ReviewState:
     file_list = "\n".join(files[:50])
 
     try:
-        result = call_llm(
-            STRUCTURE_PROMPT.format(file_list=file_list),
+        findings = run_validated_agent_call(
+            prompt=STRUCTURE_PROMPT.format(file_list=file_list),
             system_prompt=SYSTEM_PROMPT,
             model=settings.llm_model_structure,
         )
-
-        import json
-        import re
-        json_match = re.search(r'\{[\s\S]*\}', result)
-        if json_match:
-            findings = json.loads(json_match.group())
-        else:
-            findings = {"score": 70, "findings": ["Unable to parse LLM response"], "flagged_files": []}
     except Exception as e:
-        findings = {"score": 70, "findings": [f"LLM error: {str(e)}"], "flagged_files": []}
+        findings = {
+            "score": 40,
+            "findings": [],
+            "flagged_files": [],
+            "recommendations": [f"Structure review failed: {str(e)}"],
+        }
 
     state["structure_findings"] = findings
     return state

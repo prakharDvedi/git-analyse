@@ -1,5 +1,5 @@
 from app.agents.state import ReviewState
-from app.agents.llm import call_llm
+from app.agents.validation import run_validated_agent_call
 from app.core.settings import get_settings
 
 settings = get_settings()
@@ -29,7 +29,15 @@ For each file:
 Return JSON format:
 {{
   "score": integer 0-100,
-  "findings": ["specific issue in file:line or file section", ...],
+  "findings": [
+    {{
+      "file": "path/to/file",
+      "reason": "what is wrong and why it matters",
+      "evidence_snippet": "small concrete code snippet or pattern",
+      "severity": "low|medium|high|critical",
+      "confidence": 0.0
+    }}
+  ],
   "flagged_files": ["path", ...],
   "recommendations": ["concrete mitigation step", ...]
 }}
@@ -46,21 +54,18 @@ def security_agent(state: ReviewState) -> ReviewState:
     files = "\n".join([f"--- {path} ---\n{content[:1500]}" for path, content in sample_files])
 
     try:
-        result = call_llm(
-            SECURITY_PROMPT.format(files=files),
+        findings = run_validated_agent_call(
+            prompt=SECURITY_PROMPT.format(files=files),
             system_prompt=SYSTEM_PROMPT,
             model=settings.llm_model_security,
         )
-
-        import json
-        import re
-        json_match = re.search(r'\{[\s\S]*\}', result)
-        if json_match:
-            findings = json.loads(json_match.group())
-        else:
-            findings = {"score": 70, "findings": ["Parse error"], "flagged_files": []}
     except Exception as e:
-        findings = {"score": 70, "findings": [f"Error: {str(e)}"], "flagged_files": []}
+        findings = {
+            "score": 40,
+            "findings": [],
+            "flagged_files": [],
+            "recommendations": [f"Security review failed: {str(e)}"],
+        }
 
     state["security_findings"] = findings
     return state
