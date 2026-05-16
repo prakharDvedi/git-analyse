@@ -1,4 +1,15 @@
+from __future__ import annotations
+
+from app.agents.llm import call_llm_json
 from app.agents.state import ReviewState
+from app.core.settings import get_settings
+
+settings = get_settings()
+
+SYNTH_SYSTEM_PROMPT = """You are a principal engineer producing a final code-review verdict.
+You receive dimension-level findings from specialized agents.
+Produce a grounded, specific, non-generic report.
+Do not invent files or vulnerabilities not present in inputs."""
 
 
 def synthesizer_node(state: ReviewState) -> ReviewState:
@@ -6,36 +17,137 @@ def synthesizer_node(state: ReviewState) -> ReviewState:
     security = state.get("security_findings", {})
     quality = state.get("quality_findings", {})
     testing = state.get("testing_findings", {})
+    files_analyzed = len(state.get("file_map", {}))
 
+    llm_report = _synthesize_with_llm(
+        structure=structure,
+        security=security,
+        quality=quality,
+        testing=testing,
+        files_analyzed=files_analyzed,
+    )
+
+    if llm_report and isinstance(llm_report, dict) and "overall_score" in llm_report:
+        state["final_report"] = _normalize_report_shape(llm_report, files_analyzed)
+        return state
+
+    # Safe deterministic fallback when LLM output is malformed/unavailable.
+    state["final_report"] = _build_deterministic_report(
+        structure=structure,
+        security=security,
+        quality=quality,
+        testing=testing,
+        files_analyzed=files_analyzed,
+    )
+    return state
+
+
+def _synthesize_with_llm(
+    structure: dict,
+    security: dict,
+    quality: dict,
+    testing: dict,
+    files_analyzed: int,
+) -> dict | None:
+    prompt = f"""
+Input findings:
+- structure: {structure}
+- security: {security}
+- quality: {quality}
+- testing: {testing}
+- files_analyzed: {files_analyzed}
+
+Return STRICT JSON with this schema:
+{{
+  "overall_score": <int 0-100>,
+  "mega_verdict": "<1-2 sentence executive verdict>",
+  "summary": "<brief summary>",
+  "files_analyzed": <int>,
+  "dimensions": {{
+    "structure": {{
+      "score": <int>,
+      "findings": ["..."],
+      "flagged_files": ["..."],
+      "recommendations": ["..."]
+    }},
+    "security": {{
+      "score": <int>,
+      "findings": ["..."],
+      "flagged_files": ["..."],
+      "recommendations": ["..."]
+    }},
+    "quality": {{
+      "score": <int>,
+      "findings": ["..."],
+      "flagged_files": ["..."],
+      "recommendations": ["..."]
+    }},
+    "testing": {{
+      "score": <int>,
+      "findings": ["..."],
+      "flagged_files": ["..."],
+      "recommendations": ["..."]
+    }}
+  }},
+  "top_3_fixes": ["...", "...", "..."],
+  "all_recommendations": ["..."],
+  "flagged_files": ["..."]
+}}
+
+Rules:
+- Top 3 fixes must never be empty.
+- Prioritize by severity + impact + effort.
+- Use concrete file references where available.
+- If uncertainty exists, say so in findings text.
+"""
+    out = call_llm_json(
+        prompt=prompt,
+        system_prompt=SYNTH_SYSTEM_PROMPT,
+        model=settings.llm_model_synthesizer,
+    )
+    if isinstance(out, dict) and "error" not in out:
+        return out
+    return None
+
+
+def _build_deterministic_report(
+    structure: dict,
+    security: dict,
+    quality: dict,
+    testing: dict,
+    files_analyzed: int,
+) -> dict:
     total = (
-        structure.get("score", 0) +
-        security.get("score", 0) +
-        quality.get("score", 0) +
-        testing.get("score", 0)
+        structure.get("score", 0)
+        + security.get("score", 0)
+        + quality.get("score", 0)
+        + testing.get("score", 0)
     ) // 4
 
     all_findings = (
-        structure.get("findings", []) +
-        security.get("findings", []) +
-        quality.get("findings", []) +
-        testing.get("findings", [])
+        structure.get("findings", [])
+        + security.get("findings", [])
+        + quality.get("findings", [])
+        + testing.get("findings", [])
     )
 
-    flagged = list(set(
-        structure.get("flagged_files", []) +
-        security.get("flagged_files", []) +
-        quality.get("flagged_files", []) +
-        testing.get("flagged_files", [])
-    ))
+    flagged = list(
+        set(
+            structure.get("flagged_files", [])
+            + security.get("flagged_files", [])
+            + quality.get("flagged_files", [])
+            + testing.get("flagged_files", [])
+        )
+    )
 
     structure_rec = structure.get("recommendations", [])
     security_rec = security.get("recommendations", [])
     quality_rec = quality.get("recommendations", [])
     testing_rec = testing.get("recommendations", [])
 
-    state["final_report"] = {
+    return {
         "overall_score": total,
-        "files_analyzed": len(state.get("file_map", {})),
+        "files_analyzed": files_analyzed,
         "mega_verdict": build_mega_verdict(total, structure, security, quality, testing),
         "dimensions": {
             "structure": {
@@ -61,16 +173,42 @@ def synthesizer_node(state: ReviewState) -> ReviewState:
                 "findings": testing.get("findings", []),
                 "flagged_files": testing.get("flagged_files", []),
                 "recommendations": testing_rec,
-            }
+            },
         },
         "top_3_fixes": generate_fixes(structure, security, quality, testing),
         "all_recommendations": dedupe_preserve_order(
             structure_rec + security_rec + quality_rec + testing_rec
         )[:12],
         "flagged_files": flagged,
-        "summary": generate_summary(total, all_findings)
+        "summary": generate_summary(total, all_findings),
     }
-    return state
+
+
+def _normalize_report_shape(report: dict, files_analyzed: int) -> dict:
+    report.setdefault("files_analyzed", files_analyzed)
+    report.setdefault("top_3_fixes", [])
+    report.setdefault("all_recommendations", [])
+    report.setdefault("flagged_files", [])
+    report.setdefault("summary", "")
+    report.setdefault("mega_verdict", "")
+
+    dims = report.get("dimensions", {})
+    for key in ["structure", "security", "quality", "testing"]:
+        dims.setdefault(key, {})
+        dims[key].setdefault("score", 0)
+        dims[key].setdefault("findings", [])
+        dims[key].setdefault("flagged_files", [])
+        dims[key].setdefault("recommendations", [])
+    report["dimensions"] = dims
+
+    if not report.get("top_3_fixes"):
+        report["top_3_fixes"] = generate_fixes(
+            dims.get("structure", {}),
+            dims.get("security", {}),
+            dims.get("quality", {}),
+            dims.get("testing", {}),
+        )
+    return report
 
 
 def generate_fixes(structure: dict, security: dict, quality: dict, testing: dict) -> list:
@@ -80,15 +218,11 @@ def generate_fixes(structure: dict, security: dict, quality: dict, testing: dict
     qf = quality.get("findings", []) or []
     stf = structure.get("findings", []) or []
 
-    # Pull concrete recommendation candidates from all dimensions first.
     rec_candidates = (
-        structure.get("recommendations", []) or []
-    ) + (
-        security.get("recommendations", []) or []
-    ) + (
-        quality.get("recommendations", []) or []
-    ) + (
-        testing.get("recommendations", []) or []
+        (structure.get("recommendations", []) or [])
+        + (security.get("recommendations", []) or [])
+        + (quality.get("recommendations", []) or [])
+        + (testing.get("recommendations", []) or [])
     )
     for rec in rec_candidates:
         if isinstance(rec, str) and rec.strip():
@@ -107,7 +241,6 @@ def generate_fixes(structure: dict, security: dict, quality: dict, testing: dict
     if any("separation" in f.lower() or "layer" in f.lower() for f in stf):
         fixes.append("Enforce layer boundaries (route-service-repository) and remove cross-layer leakage")
 
-    # Ensure non-empty, useful top-3 even when agent text is sparse.
     if not fixes:
         scored = sorted(
             [
@@ -186,3 +319,4 @@ def build_mega_verdict(total: int, structure: dict, security: dict, quality: dic
     if total >= 40:
         return f"Usable foundation but not production-ready. Resolve weakest dimensions before feature acceleration ({weak_dims})."
     return f"High risk for maintainability and reliability. Focus immediately on weakest dimensions ({weak_dims}) before expansion."
+
