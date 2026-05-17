@@ -3,6 +3,37 @@ from app.services.github_service import get_repo_tree, get_file_content, get_def
 from app.utils.repo_url import parse_github_repo_url
 
 MAX_CONTENT_LENGTH = 3000
+BINARY_EXTENSIONS = {
+    ".pyc",
+    ".pyo",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".ico",
+    ".pdf",
+    ".exe",
+    ".dll",
+    ".so",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".7z",
+    ".mp3",
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".otf",
+}
+
+
+def _is_binary_path(path: str) -> bool:
+    lower = path.lower()
+    return any(lower.endswith(ext) for ext in BINARY_EXTENSIONS)
 
 
 def fetcher_node(state: ReviewState) -> ReviewState:
@@ -15,6 +46,9 @@ def fetcher_node(state: ReviewState) -> ReviewState:
     file_map = {}
     for entry in file_entries:
         path = entry["path"]
+        if _is_binary_path(path):
+            file_map[path] = "[binary file skipped]"
+            continue
         try:
             content = get_file_content(owner, repo, path)
             if len(content) > MAX_CONTENT_LENGTH:

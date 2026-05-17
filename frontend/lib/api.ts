@@ -1,4 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const WS_URL = API_URL.replace("http://", "ws://").replace("https://", "wss://");
 
 export async function fetchApi<T>(
   endpoint: string,
@@ -86,5 +87,36 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ repo_url: repoUrl }),
       }),
+
+    stream: (
+      repoUrl: string,
+      handlers: {
+        onToken: (tokenChunk: string) => void;
+        onDone: () => void;
+        onError: (message: string) => void;
+        onStatus?: (message: string) => void;
+      }
+    ) => {
+      const ws = new WebSocket(`${WS_URL}/analyze/ws`);
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ repo_url: repoUrl }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "token") handlers.onToken(msg.data ?? "");
+          else if (msg.type === "done") handlers.onDone();
+          else if (msg.type === "error") handlers.onError(msg.message ?? "Streaming failed");
+          else if (msg.type === "status" && handlers.onStatus) handlers.onStatus(msg.message ?? "");
+        } catch {
+          handlers.onError("Invalid WebSocket payload");
+        }
+      };
+
+      ws.onerror = () => handlers.onError("WebSocket error");
+      return ws;
+    },
   },
 };

@@ -1,6 +1,8 @@
 import logging
+import json
+import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
 
 from app.agents.pipeline import run_review
 from app.api.deps import get_current_user
@@ -49,3 +51,30 @@ def start_analysis(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Analysis failed: {str(e)}",
         )
+
+
+@router.websocket("/ws")
+async def stream_analysis(ws: WebSocket):
+    await ws.accept()
+    try:
+        init = await ws.receive_json()
+        repo_url = init.get("repo_url")
+        if not repo_url:
+            await ws.send_json({"type": "error", "message": "repo_url is required"})
+            await ws.close(code=1008)
+            return
+
+        await ws.send_json({"type": "status", "message": "analysis_started"})
+        result = run_review(repo_url)
+        payload = json.dumps(result)
+
+        chunk_size = 120
+        for i in range(0, len(payload), chunk_size):
+            await ws.send_json({"type": "token", "data": payload[i : i + chunk_size]})
+            await asyncio.sleep(0.01)
+
+        await ws.send_json({"type": "done"})
+        await ws.close()
+    except Exception as e:
+        await ws.send_json({"type": "error", "message": f"analysis_failed: {str(e)}"})
+        await ws.close(code=1011)
