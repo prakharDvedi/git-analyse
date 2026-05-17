@@ -1,184 +1,219 @@
 # CodeReviewer
 
-> Paste a GitHub repository URL. Get a structured engineering review across architecture, security, code quality, and test coverage — streamed live to your browser.
-
----
+Paste a GitHub repository URL and get a structured engineering review across architecture, security, code quality, and testing.
 
 ## What It Does
 
-Most code review tools run static analysis — they flag syntax and style. CodeReviewer reasons about your code the way a senior engineer would: does the folder structure make sense, are secrets exposed, are functions too complex, is there any test coverage at all?
+CodeReviewer fetches a public GitHub repository, samples and filters files, then runs a LangGraph-based review pipeline that scores the repo and produces prioritized fixes.
 
-Four specialized agents analyze the repository in parallel. A synthesizer compiles their findings into a scored report with prioritized fixes. The entire report streams token-by-token to the frontend via WebSocket.
+The current pipeline is partially agentic:
+- it fetches repository contents with PyGithub
+- routes analysis based on repo structure
+- runs independent analysis nodes in parallel
+- uses a tool-using security agent with a small investigate loop
+- synthesizes the final verdict into a structured JSON report
 
----
+## Current Architecture
 
-## Architecture
-
-```
+```txt
 Browser (Next.js)
-    │
-    │  HTTPS / WebSocket
-    ▼
+    |
+    |  HTTP / WebSocket
+    v
 FastAPI (Python)
-    │
-    ├── GitHub Fetcher (PyGithub)
-    │     Fetches file tree + contents
-    │     Truncates at 50 files, skips binaries
-    │
-    └── LangGraph Pipeline
-            │
-            ├── [Node 1] Structure Agent
-            │     Folder layout, naming, separation of concerns
-            │
-            ├── [Node 2] Security Agent
-            │     Hardcoded secrets, unsafe inputs, exposed keys
-            │
-            ├── [Node 3] Quality Agent
-            │     Function length, duplication, complexity signals
-            │
-            ├── [Node 4] Testing Agent
-            │     Test files, CI config, coverage signals
-            │
-            └── [Node 5] Synthesizer
-                    Compiles findings → overall score → streams to client
+    |
+    +-- Auth + review API
+    |
+    +-- GitHub fetch layer (PyGithub)
+    |     - fetch default branch
+    |     - fetch recursive tree
+    |     - fetch file contents
+    |     - skip binaries / large files
+    |
+    +-- LangGraph review pipeline
+          |
+          +-- Fetcher
+          +-- Router
+          |     decides which agents to run
+          |
+          +-- Structure Agent   \
+          +-- Security Agent     > runs in parallel after fetch
+          +-- Quality Agent     /
+          +-- Testing Agent
+          |
+          +-- Synthesizer
+                produces final report
 ```
 
----
+## Why It Is More Than A Prompt Wrapper
+
+This project is not just a single prompt over a repo dump.
+
+It currently includes:
+- a graph-based workflow
+- repo-local tool use (`list_files`, `get_file`, `search_code`)
+- routing decisions after fetch
+- a security investigate loop (`think -> choose tool -> observe -> continue/finish`)
+- validated structured outputs for agent findings
+
+It is still early-stage agentic, not fully autonomous.
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Backend | FastAPI (Python) |
-| AI Orchestration | LangGraph |
-| LLM | HuggingFace Inference API |
-| Streaming | WebSockets |
-| Frontend | Next.js 14 (TypeScript) |
-| Styling | Tailwind CSS + shadcn/ui |
+| Backend | FastAPI |
+| Graph Orchestration | LangGraph |
+| GitHub Fetch | PyGithub |
+| LLM | Hugging Face Router API or Ollama |
+| Frontend | Next.js 16 |
+| Styling | Tailwind CSS |
 | Database | SQLite (dev) |
+| Auth | JWT |
+| Observability | Structured JSON logging |
 
----
+## Report Shape
 
-## Report Output
-
-Each analysis produces a structured report:
+Each analysis returns a structured report like:
 
 ```json
 {
-  "overall_score": 74,
-  "files_analyzed": 34,
-  "mega_verdict": "Promising codebase. Prioritize security and testing.",
+  "overall_score": 76,
+  "files_analyzed": 50,
+  "mega_verdict": "Promising codebase with clear improvement paths.",
   "dimensions": {
-    "structure": { "score": 80, "findings": [...], "flagged_files": [...] },
-    "security":  { "score": 55, "findings": [...], "flagged_files": [...] },
-    "quality":   { "score": 70, "findings": [...], "flagged_files": [...] },
-    "testing":   { "score": 30, "findings": [...], "flagged_files": [...] }
+    "structure": {
+      "score": 85,
+      "findings": [
+        {
+          "file": "backend/src/api/main.py",
+          "reason": "Potential lack of separation between API routes and business logic",
+          "evidence_snippet": "main.py appears to mix route and application logic",
+          "severity": "medium",
+          "confidence": 0.7
+        }
+      ],
+      "flagged_files": ["backend/src/api/main.py"],
+      "recommendations": ["Split route handlers from service logic"]
+    }
   },
   "top_3_fixes": [
-    "Move secrets to environment variables",
-    "Add baseline tests for authentication and critical flows",
-    "Refactor long functions in flagged files"
+    "Refactor route handlers to reduce cross-layer coupling",
+    "Add higher-value tests for critical flows",
+    "Improve secrets/config handling"
   ],
-  "summary": "Solid structure. Security hygiene needs immediate attention. Testing is a major gap."
+  "summary": "Good foundation but several areas need attention."
 }
 ```
 
----
+## Backend Features Implemented
+
+- JWT register/login/me flow
+- structured JSON logging with correlation IDs
+- CORS for local frontend
+- PyGithub repository fetching
+- binary and oversized file skipping
+- parallel post-fetch analysis nodes
+- WebSocket analysis streaming endpoint
+- validated evidence-based findings schema
 
 ## Local Setup
 
-**Prerequisites:** Python 3.11+, Node 18+
+### Prerequisites
 
-```bash
-# 1. Clone the repo
-git clone https://github.com/prakharDvedi/CodeReviewer
-cd git-analyse
+- Python 3.10+
+- Node 18+
 
-# 2. Backend
-cd app
+### Backend
+
+```powershell
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+```
 
-# 3. Environment variables
-cp .env.example .env
-# Add your GITHUB_TOKEN and HF_TOKEN
+Create `.env` at repo root and set at minimum:
 
-# 4. Run backend
-uvicorn main:app --reload
+```env
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXP_MINUTES=60
+DATABASE_URL=sqlite:///./codereviewer.db
+APP_NAME=CodeReviewer
 
-# 5. Frontend (separate terminal)
-cd ../frontend
+GITHUB_TOKEN=your_github_token
+
+LLM_PROVIDER=huggingface
+LLM_MODEL=deepseek-ai/DeepSeek-V3-0324:novita
+HF_TOKEN=your_huggingface_token
+LLM_TEMPERATURE=0.2
+LLM_MAX_TOKENS=1024
+```
+
+Run backend:
+
+```powershell
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+### Frontend
+
+```powershell
+cd frontend
 npm install
 npm run dev
 ```
 
-Or run both with the PowerShell script:
+Open:
 
-```powershell
-.\start-dev.ps1
-```
+- `http://localhost:3000`
 
-Open [http://localhost:3000](http://localhost:3000)
-
----
-
-## Environment Variables
-
-Create a `.env` file inside `app/`:
-
-```env
-GITHUB_TOKEN=your_github_personal_access_token
-HF_TOKEN=your_huggingface_api_token
-```
-
-- **GITHUB_TOKEN** — needed for private repos and higher rate limits. [Get one here](https://github.com/settings/tokens)
-- **HF_TOKEN** — needed for LLM inference. [Get one here](https://huggingface.co/settings/tokens)
-
----
-
-## API Reference
+## API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/repositories/analyze` | Start analysis for a repo URL |
-| GET | `/api/repositories/{id}` | Fetch completed report |
-| GET | `/api/repositories/` | List past analyses |
-| WS | `/ws/analyze/{id}` | Stream report tokens live |
-
----
+| POST | `/auth/register` | Register a user |
+| POST | `/auth/login` | Login and get JWT |
+| GET | `/auth/me` | Current authenticated user |
+| POST | `/review/tree` | Fetch repo tree preview |
+| POST | `/review/file` | Fetch one file content |
+| POST | `/analyze` | Run full analysis |
+| WS | `/analyze/ws` | Stream analysis result chunks |
 
 ## Project Structure
 
-```
+```txt
 git-analyse/
-├── app/
-│   ├── main.py              # FastAPI entry point
-│   ├── api/                 # Route handlers
-│   ├── agents/              # LangGraph agent nodes
-│   │   ├── state.py         # Shared ReviewState TypedDict
-│   │   ├── structure.py
-│   │   ├── security.py
-│   │   ├── quality.py
-│   │   ├── testing.py
-│   │   └── synthesizer.py
-│   ├── core/                # Config, settings
-│   ├── models/              # Database models
-│   ├── schemas/             # Pydantic schemas
-│   └── services/            # GitHub fetcher, pipeline runner
-├── frontend/
-│   ├── app/                 # Next.js App Router pages
-│   ├── components/          # React components
-│   └── lib/                 # Utilities, API client
-├── start-dev.ps1            # Dev startup script
-└── README.md
+|-- app/
+|   |-- main.py
+|   |-- api/
+|   |-- agents/
+|   |   |-- pipeline.py
+|   |   |-- router.py
+|   |   |-- tools.py
+|   |   |-- fetcher.py
+|   |   |-- structure.py
+|   |   |-- security.py
+|   |   |-- quality.py
+|   |   |-- testing.py
+|   |   `-- synthesizer.py
+|   |-- core/
+|   |-- models/
+|   |-- repositories/
+|   |-- schemas/
+|   `-- services/
+|-- frontend/
+|-- requirements.txt
+|-- PROJECT_DOCUMENTATION.md
+`-- README.md
 ```
-
----
 
 ## Known Limitations
 
-- Public repositories only (no auth flow for private repos yet)
-- Capped at 50 files per analysis to stay within LLM context limits
-- SQLite in development — swap to PostgreSQL before any production deploy
-- LLM output is non-deterministic; scores may vary slightly between runs on the same repo
+- capped at 50 files per analysis
+- large text files and binaries are skipped
+- analysis is still slower than ideal for frontend UX
+- findings are better grounded now, but still partly LLM-dependent
+- no persistent analysis history store yet
+- SQLite is still dev-only
+
