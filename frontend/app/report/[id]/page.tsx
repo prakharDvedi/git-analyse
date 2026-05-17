@@ -5,8 +5,17 @@ import Link from "next/link";
 
 type Dimension = {
   score: number;
-  findings: string[];
+  findings: Finding[];
   flagged_files: string[];
+  recommendations?: string[];
+};
+
+type Finding = {
+  file: string;
+  reason: string;
+  evidence_snippet: string;
+  severity: "low" | "medium" | "high" | "critical";
+  confidence: number;
 };
 
 type FinalReport = {
@@ -82,6 +91,13 @@ export default function ReportPage() {
     { key: "testing", label: "Testing" },
   ];
 
+  const severityClass: Record<Finding["severity"], string> = {
+    low: "bg-slate-100 text-slate-700",
+    medium: "bg-amber-100 text-amber-800",
+    high: "bg-orange-100 text-orange-800",
+    critical: "bg-red-100 text-red-800",
+  };
+
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-4xl px-6 py-10">
@@ -106,13 +122,41 @@ export default function ReportPage() {
                   <h2 className="text-base font-semibold text-slate-900">{s.label}</h2>
                   <span className="text-sm font-medium text-slate-700">{d.score}/100</span>
                 </div>
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                <div className="mt-3 space-y-3 text-sm text-slate-700">
                   {d.findings?.length ? (
-                    d.findings.slice(0, 5).map((f, i) => <li key={i}>{f}</li>)
+                    d.findings.slice(0, 5).map((f, i) => (
+                      <div key={i} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <code className="text-xs text-slate-700">{f.file}</code>
+                          <span className={`rounded px-2 py-0.5 text-xs font-medium ${severityClass[f.severity]}`}>
+                            {f.severity}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-slate-900">{f.reason}</p>
+                        <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-slate-600 whitespace-pre-wrap">
+                          {f.evidence_snippet}
+                        </pre>
+                        <div className="mt-2 text-xs text-slate-500">
+                          Confidence: {Math.round(f.confidence * 100)}%
+                        </div>
+                      </div>
+                    ))
                   ) : (
-                    <li>No findings returned.</li>
+                    <div>No findings returned.</div>
                   )}
-                </ul>
+                </div>
+                {d.recommendations?.length ? (
+                  <div className="mt-4">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Recommendations
+                    </h3>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                      {d.recommendations.slice(0, 3).map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </article>
             );
           })}
@@ -132,4 +176,3 @@ export default function ReportPage() {
     </main>
   );
 }
-

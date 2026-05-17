@@ -2,7 +2,6 @@ import os
 from typing import Optional
 
 import requests
-from huggingface_hub import InferenceClient
 
 from app.core.settings import get_settings
 
@@ -30,19 +29,31 @@ def _call_huggingface_chat(
     temperature: float,
     max_tokens: int,
 ) -> str:
-    client = InferenceClient(model=model, token=HF_TOKEN)
-
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
-    response = client.chat_completion(
-        messages=messages,
-        max_tokens=max_tokens,
-        temperature=temperature,
+    response = requests.post(
+        "https://router.huggingface.co/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {HF_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        },
+        timeout=120,
     )
-    return response.choices[0].message.content
+    response.raise_for_status()
+    data = response.json()
+    try:
+        return data["choices"][0]["message"]["content"]
+    except Exception:
+        raise ValueError("Unexpected Hugging Face router response format")
 
 
 def _call_ollama_chat(
@@ -139,4 +150,3 @@ Return ONLY valid JSON. No markdown, no explanation.
             pass
 
     return {"error": "Failed to parse JSON", "raw": response_text}
-
