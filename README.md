@@ -71,6 +71,7 @@ It is still early-stage agentic, not fully autonomous.
 | Database | SQLite (dev) |
 | Auth | JWT |
 | Observability | Structured JSON logging |
+| DevOps | Docker Compose + GitHub Actions |
 
 ## Report Shape
 
@@ -117,6 +118,8 @@ Each analysis returns a structured report like:
 - persisted analysis history in SQLite
 - WebSocket analysis streaming endpoint
 - validated evidence-based findings schema
+- Dockerized backend and frontend
+- GitHub Actions CI for backend, frontend, and image builds
 
 ## Local Setup
 
@@ -169,6 +172,31 @@ Open:
 
 - `http://localhost:3000`
 
+## Docker Setup
+
+Copy the example environment file and fill in your real tokens:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Then run the full stack:
+
+```powershell
+docker compose up --build
+```
+
+Services:
+
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:8000`
+
+Notes:
+
+- backend data is persisted in the `backend_data` Docker volume
+- Compose overrides SQLite to use `sqlite:///./data/gitanalyse.db`
+- frontend is built with `NEXT_PUBLIC_API_URL=http://localhost:8000`
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
@@ -218,4 +246,12 @@ git-analyse/
 - analysis is still slower than ideal for frontend UX
 - findings are better grounded now, but still partly LLM-dependent
 - SQLite is still dev-only
+
+## CI
+
+GitHub Actions runs three checks on push / pull request:
+
+- backend dependency install + Python compile/import validation
+- frontend dependency install + production build
+- Docker image builds for backend and frontend
 
