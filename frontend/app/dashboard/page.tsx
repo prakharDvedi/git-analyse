@@ -2,23 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
-
-interface Analysis {
-  id: number;
-  repo_url: string;
-  status: string;
-}
+import { AnalysisSummary, api } from "@/lib/api";
 
 export default function Dashboard() {
-  const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  const [analyses, setAnalyses] = useState<AnalysisSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.auth.me()
-      .then(() => {
-        // For now, show empty state
-        setAnalyses([]);
+    api.analyze.list()
+      .then((items) => {
+        setAnalyses(items);
       })
       .catch(() => {
         window.location.href = "/auth";
@@ -76,7 +69,9 @@ export default function Dashboard() {
                 className="block p-4 bg-white rounded-md border border-slate-200 hover:border-slate-300 transition-colors"
               >
                 <div className="font-medium text-slate-900">{a.repo_url}</div>
-                <div className="text-sm text-slate-600">{a.status}</div>
+                <div className="text-sm text-slate-600">
+                  {a.status} · {new Date(a.created_at).toLocaleString()}
+                </div>
               </Link>
             ))}
           </div>

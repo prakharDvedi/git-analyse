@@ -17,7 +17,7 @@ from app.core.telemetry import (
 # DB
 from app.db import engine
 from app.models.base import Base
-from app.models import user  # ensures models are registered
+from app.models import analysis, user  # ensures models are registered
 
 # Routers
 from app.api.routes.auth import router as auth_router

@@ -1,44 +1,66 @@
-import logging
 import json
 import asyncio
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, status
+from sqlalchemy.orm import Session
 
 from app.agents.pipeline import run_review
 from app.api.deps import get_current_user
 from app.core.telemetry import elapsed_ms, get_logger, log_event, request_start_time
+from app.db import get_db
+from app.models.analysis import Analysis
 from app.models.user import User
-from app.schemas.analysis import AnalyzeRequest
-from app.schemas.review import ReviewResponse
+from app.schemas.analysis import AnalysisDetail, AnalysisSummary, AnalyzeRequest
 
 router = APIRouter(prefix="/analyze", tags=["analyze"])
 logger = get_logger("app.api.routes.analysis")
 
 
-@router.post("", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
+def _serialize_analysis(record: Analysis) -> AnalysisDetail:
+    report = None
+    if record.report_json:
+        report = json.loads(record.report_json)
+    return AnalysisDetail(
+        id=record.id,
+        repo_url=record.repo_url,
+        status=record.status,
+        created_at=record.created_at,
+        report=report,
+    )
+
+
+@router.post("", response_model=AnalysisDetail, status_code=status.HTTP_201_CREATED)
 def start_analysis(
     payload: AnalyzeRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     started = request_start_time()
     log_event(logger, logging.INFO, "analysis.started", user_id=current_user.id)
     try:
         result = run_review(payload.repo_url)
+        record = Analysis(
+            user_id=current_user.id,
+            repo_url=payload.repo_url,
+            status="complete",
+            report_json=json.dumps(result),
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
         log_event(
             logger,
             logging.INFO,
             "analysis.succeeded",
             user_id=current_user.id,
+            analysis_id=record.id,
             overall_score=result.get("overall_score"),
             execution_duration_ms=elapsed_ms(started),
         )
-        return ReviewResponse(
-            id=1,
-            repo_url=payload.repo_url,
-            status="complete",
-            report=result,
-        )
+        return _serialize_analysis(record)
     except Exception as e:
+        db.rollback()
         log_event(
             logger,
             logging.ERROR,
@@ -51,6 +73,44 @@ def start_analysis(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Analysis failed: {str(e)}",
         )
+
+
+@router.get("", response_model=list[AnalysisSummary])
+def list_analyses(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    records = (
+        db.query(Analysis)
+        .filter(Analysis.user_id == current_user.id)
+        .order_by(Analysis.created_at.desc(), Analysis.id.desc())
+        .all()
+    )
+    return [
+        AnalysisSummary(
+            id=record.id,
+            repo_url=record.repo_url,
+            status=record.status,
+            created_at=record.created_at,
+        )
+        for record in records
+    ]
+
+
+@router.get("/{analysis_id}", response_model=AnalysisDetail)
+def get_analysis(
+    analysis_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    record = (
+        db.query(Analysis)
+        .filter(Analysis.id == analysis_id, Analysis.user_id == current_user.id)
+        .first()
+    )
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
+    return _serialize_analysis(record)
 
 
 @router.websocket("/ws")

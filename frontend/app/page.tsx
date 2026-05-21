@@ -28,7 +28,6 @@ export default function Home() {
       }
 
       const analysis = await api.analyze.create(repoUrl);
-      localStorage.setItem("last_analysis", JSON.stringify(analysis));
       router.push(`/report/${analysis.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");

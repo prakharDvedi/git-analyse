@@ -1,6 +1,45 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const WS_URL = API_URL.replace("http://", "ws://").replace("https://", "wss://");
 
+export type Finding = {
+  file: string;
+  reason: string;
+  evidence_snippet: string;
+  severity: "low" | "medium" | "high" | "critical";
+  confidence: number;
+};
+
+export type Dimension = {
+  score: number;
+  findings: Finding[];
+  flagged_files: string[];
+  recommendations?: string[];
+};
+
+export type FinalReport = {
+  overall_score: number;
+  summary: string;
+  top_3_fixes: string[];
+  files_analyzed: number;
+  dimensions: {
+    structure: Dimension;
+    security: Dimension;
+    quality: Dimension;
+    testing: Dimension;
+  };
+};
+
+export type AnalysisSummary = {
+  id: number;
+  repo_url: string;
+  status: string;
+  created_at: string;
+};
+
+export type AnalysisDetail = AnalysisSummary & {
+  report: FinalReport | null;
+};
+
 export async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -83,10 +122,15 @@ export const api = {
 
   analyze: {
     create: (repoUrl: string) =>
-      fetchApi<{ id: number; repo_url: string; status: string; report: unknown }>("/analyze", {
+      fetchApi<AnalysisDetail>("/analyze", {
         method: "POST",
         body: JSON.stringify({ repo_url: repoUrl }),
       }),
+
+    get: (analysisId: string | number) =>
+      fetchApi<AnalysisDetail>(`/analyze/${analysisId}`),
+
+    list: () => fetchApi<AnalysisSummary[]>("/analyze"),
 
     stream: (
       repoUrl: string,

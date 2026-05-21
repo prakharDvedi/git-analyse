@@ -2,84 +2,62 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 
-type Dimension = {
-  score: number;
-  findings: Finding[];
-  flagged_files: string[];
-  recommendations?: string[];
-};
-
-type Finding = {
-  file: string;
-  reason: string;
-  evidence_snippet: string;
-  severity: "low" | "medium" | "high" | "critical";
-  confidence: number;
-};
-
-type FinalReport = {
-  overall_score: number;
-  summary: string;
-  top_3_fixes: string[];
-  files_analyzed: number;
-  dimensions: {
-    structure: Dimension;
-    security: Dimension;
-    quality: Dimension;
-    testing: Dimension;
-  };
-};
-
-type AnalysisPayload = {
-  id: number;
-  repo_url: string;
-  status: string;
-  report: FinalReport;
-};
+import { AnalysisDetail, FinalReport, Finding, api } from "@/lib/api";
 
 export default function ReportPage() {
-  const [analysis, setAnalysis] = useState<AnalysisPayload | null>(null);
+  const params = useParams<{ id: string }>();
+  const [analysis, setAnalysis] = useState<AnalysisDetail | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const raw = localStorage.getItem("last_analysis");
-    if (!raw) {
-      setError("No analysis result found. Run an analysis from the home page.");
+    const analysisId = params?.id;
+    if (!analysisId) {
+      setError("Missing analysis id.");
+      setLoading(false);
       return;
     }
 
-    try {
-      const parsed = JSON.parse(raw) as AnalysisPayload;
-      if (!parsed.report) {
-        setError("Analysis exists but report payload is empty.");
-        return;
-      }
-      setAnalysis(parsed);
-    } catch {
-      setError("Could not parse analysis result.");
-    }
-  }, []);
+    api.analyze
+      .get(analysisId)
+      .then((result) => {
+        if (!result.report) {
+          setError("Analysis exists but report payload is empty.");
+          return;
+        }
+        setAnalysis(result);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Could not load analysis.");
+      })
+      .finally(() => setLoading(false));
+  }, [params]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-3xl px-6 py-24 text-slate-600">Loading report...</div>
+      </main>
+    );
+  }
 
   if (error) {
     return (
       <main className="min-h-screen bg-slate-50">
         <div className="mx-auto max-w-3xl px-6 py-24">
           <p className="rounded-md border border-red-200 bg-red-50 p-4 text-red-700">{error}</p>
-          <Link href="/" className="mt-6 inline-block text-sm text-slate-900 hover:underline">
-            Back to home
+          <Link href="/dashboard" className="mt-6 inline-block text-sm text-slate-900 hover:underline">
+            Back to analysis history
           </Link>
         </div>
       </main>
     );
   }
 
-  if (!analysis) {
-    return (
-      <main className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-3xl px-6 py-24 text-slate-600">Loading report...</div>
-      </main>
-    );
+  if (!analysis?.report) {
+    return null;
   }
 
   const report = analysis.report;
@@ -104,6 +82,9 @@ export default function ReportPage() {
         <header className="mb-8">
           <div className="text-sm text-slate-500">Repo</div>
           <h1 className="text-xl font-semibold text-slate-900">{analysis.repo_url}</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {analysis.status} · {new Date(analysis.created_at).toLocaleString()}
+          </p>
           <p className="mt-2 text-slate-700">{report.summary}</p>
         </header>
 
@@ -114,30 +95,32 @@ export default function ReportPage() {
         </section>
 
         <section className="mb-8 grid gap-4 md:grid-cols-2">
-          {sections.map((s) => {
-            const d = report.dimensions[s.key];
+          {sections.map((section) => {
+            const dimension = report.dimensions[section.key];
             return (
-              <article key={s.key} className="rounded-md border border-slate-200 bg-white p-5">
+              <article key={section.key} className="rounded-md border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-slate-900">{s.label}</h2>
-                  <span className="text-sm font-medium text-slate-700">{d.score}/100</span>
+                  <h2 className="text-base font-semibold text-slate-900">{section.label}</h2>
+                  <span className="text-sm font-medium text-slate-700">{dimension.score}/100</span>
                 </div>
                 <div className="mt-3 space-y-3 text-sm text-slate-700">
-                  {d.findings?.length ? (
-                    d.findings.slice(0, 5).map((f, i) => (
-                      <div key={i} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  {dimension.findings?.length ? (
+                    dimension.findings.slice(0, 5).map((finding, index) => (
+                      <div key={index} className="rounded-md border border-slate-200 bg-slate-50 p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <code className="text-xs text-slate-700">{f.file}</code>
-                          <span className={`rounded px-2 py-0.5 text-xs font-medium ${severityClass[f.severity]}`}>
-                            {f.severity}
+                          <code className="text-xs text-slate-700">{finding.file}</code>
+                          <span
+                            className={`rounded px-2 py-0.5 text-xs font-medium ${severityClass[finding.severity]}`}
+                          >
+                            {finding.severity}
                           </span>
                         </div>
-                        <p className="mt-2 text-sm text-slate-900">{f.reason}</p>
+                        <p className="mt-2 text-sm text-slate-900">{finding.reason}</p>
                         <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-slate-600 whitespace-pre-wrap">
-                          {f.evidence_snippet}
+                          {finding.evidence_snippet}
                         </pre>
                         <div className="mt-2 text-xs text-slate-500">
-                          Confidence: {Math.round(f.confidence * 100)}%
+                          Confidence: {Math.round(finding.confidence * 100)}%
                         </div>
                       </div>
                     ))
@@ -145,14 +128,14 @@ export default function ReportPage() {
                     <div>No findings returned.</div>
                   )}
                 </div>
-                {d.recommendations?.length ? (
+                {dimension.recommendations?.length ? (
                   <div className="mt-4">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Recommendations
                     </h3>
                     <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                      {d.recommendations.slice(0, 3).map((item, i) => (
-                        <li key={i}>{item}</li>
+                      {dimension.recommendations.slice(0, 3).map((item, index) => (
+                        <li key={index}>{item}</li>
                       ))}
                     </ul>
                   </div>
@@ -166,7 +149,7 @@ export default function ReportPage() {
           <h2 className="text-base font-semibold text-slate-900">Top 3 Fixes</h2>
           <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-700">
             {report.top_3_fixes?.length ? (
-              report.top_3_fixes.map((item, i) => <li key={i}>{item}</li>)
+              report.top_3_fixes.map((item, index) => <li key={index}>{item}</li>)
             ) : (
               <li>No priority fixes generated.</li>
             )}
