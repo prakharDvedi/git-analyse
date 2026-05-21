@@ -114,6 +114,7 @@ Each analysis returns a structured report like:
 - PyGithub repository fetching
 - binary and oversized file skipping
 - parallel post-fetch analysis nodes
+- persisted analysis history in SQLite
 - WebSocket analysis streaming endpoint
 - validated evidence-based findings schema
 
@@ -177,7 +178,9 @@ Open:
 | GET | `/auth/me` | Current authenticated user |
 | POST | `/review/tree` | Fetch repo tree preview |
 | POST | `/review/file` | Fetch one file content |
-| POST | `/analyze` | Run full analysis |
+| POST | `/analyze` | Run full analysis and persist report |
+| GET | `/analyze` | List current user's analysis history |
+| GET | `/analyze/{id}` | Get one persisted analysis report |
 | WS | `/analyze/ws` | Stream analysis result chunks |
 
 ## Project Structure
@@ -214,6 +217,5 @@ git-analyse/
 - large text files and binaries are skipped
 - analysis is still slower than ideal for frontend UX
 - findings are better grounded now, but still partly LLM-dependent
-- no persistent analysis history store yet
 - SQLite is still dev-only
 
