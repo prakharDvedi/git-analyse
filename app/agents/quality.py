@@ -9,7 +9,7 @@ settings = get_settings()
 
 SYSTEM_PROMPT = """You are a code quality expert analyzing code.
 Respond with JSON containing:
-- score: integer 0-100
+- quality_score: integer 0-100
 - findings: array of strings (specific issues)
 - flagged_files: array of files with issues"""
 
@@ -32,7 +32,7 @@ Check for:
 
 Respond with JSON:
 {{
-  "score": 75,
+  "quality_score": 75,
   "findings": [
     {{
       "file": "path/to/file",
@@ -80,6 +80,5 @@ def quality_agent(state: ReviewState) -> ReviewState:
             "recommendations": [f"Quality review failed: {str(e)}"],
         }
 
-    state["quality_findings"] = findings
     update_current_span(output={"score": findings.get("score", 0), "flagged_files": findings.get("flagged_files", [])})
-    return state
+    return {"quality_findings": findings}

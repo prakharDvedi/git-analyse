@@ -148,6 +148,5 @@ def security_agent(state: ReviewState) -> ReviewState:
             "recommendations": [f"Security review failed: {str(e)}"],
         }
 
-    state["security_findings"] = findings
     update_current_span(output={"score": findings.get("score", 0), "flagged_files": findings.get("flagged_files", [])})
-    return state
+    return {"security_findings": findings}

@@ -61,7 +61,6 @@ def fetcher_node(state: ReviewState) -> ReviewState:
         except Exception:
             file_map[path] = "[unable to read]"
 
-    state["file_map"] = file_map
     update_current_span(
         output={
             "owner": owner,
@@ -70,4 +69,4 @@ def fetcher_node(state: ReviewState) -> ReviewState:
             "files_loaded": len(file_map),
         }
     )
-    return state
+    return {"file_map": file_map}

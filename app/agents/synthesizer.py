@@ -32,17 +32,17 @@ def synthesizer_node(state: ReviewState) -> ReviewState:
     )
 
     if llm_report and isinstance(llm_report, dict) and "overall_score" in llm_report:
-        state["final_report"] = _normalize_report_shape(llm_report, files_analyzed)
+        final_report = _normalize_report_shape(llm_report, files_analyzed)
         update_current_span(
             output={
-                "overall_score": state["final_report"].get("overall_score"),
-                "top_3_fixes": state["final_report"].get("top_3_fixes", []),
+                "overall_score": final_report.get("overall_score"),
+                "top_3_fixes": final_report.get("top_3_fixes", []),
             }
         )
-        return state
+        return {"final_report": final_report}
 
     # Safe deterministic fallback when LLM output is malformed/unavailable.
-    state["final_report"] = _build_deterministic_report(
+    final_report = _build_deterministic_report(
         structure=structure,
         security=security,
         quality=quality,
@@ -51,11 +51,11 @@ def synthesizer_node(state: ReviewState) -> ReviewState:
     )
     update_current_span(
         output={
-            "overall_score": state["final_report"].get("overall_score"),
-            "top_3_fixes": state["final_report"].get("top_3_fixes", []),
+            "overall_score": final_report.get("overall_score"),
+            "top_3_fixes": final_report.get("top_3_fixes", []),
         }
     )
-    return state
+    return {"final_report": final_report}
 
 
 def _synthesize_with_llm(

@@ -36,15 +36,16 @@ def router_node(state: ReviewState) -> ReviewState:
     else:
         notes["security"] = "No obvious sensitive path names; security agent still runs on sampled files."
 
-    state["selected_agents"] = sorted(selected)
-    state["router_notes"] = notes
     update_current_span(
         output={
-            "selected_agents": state["selected_agents"],
+            "selected_agents": sorted(selected),
             "router_notes": notes,
         }
     )
-    return state
+    return {
+        "selected_agents": sorted(selected),
+        "router_notes": notes,
+    }
 
 
 def route_selected_agents(state: ReviewState) -> list[str]:

@@ -76,7 +76,7 @@ def structure_agent(state: ReviewState) -> ReviewState:
         findings = run_validated_agent_call(
             prompt=STRUCTURE_PROMPT.format(file_list=file_list),
             system_prompt=SYSTEM_PROMPT,
-            model=settings.llm_model_structure,
+            model="deepseek-ai/DeepSeek-V3-0324:typo",
         )
     except Exception as e:
         findings = {
@@ -86,6 +86,5 @@ def structure_agent(state: ReviewState) -> ReviewState:
             "recommendations": [f"Structure review failed: {str(e)}"],
         }
 
-    state["structure_findings"] = findings
     update_current_span(output={"score": findings.get("score", 0), "flagged_files": findings.get("flagged_files", [])})
-    return state
+    return {"structure_findings": findings}

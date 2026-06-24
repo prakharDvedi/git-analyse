@@ -81,6 +81,5 @@ def testing_agent(state: ReviewState) -> ReviewState:
             "recommendations": [f"Testing review failed: {str(e)}"],
         }
 
-    state["testing_findings"] = findings
     update_current_span(output={"score": findings.get("score", 0), "flagged_files": findings.get("flagged_files", [])})
-    return state
+    return {"testing_findings": findings}
