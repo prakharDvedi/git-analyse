@@ -46,6 +46,7 @@ export default function Auth() {
           username: cleanUsername,
           password: cleanPassword,
         });
+        await api.auth.login({ email: cleanEmail, password: cleanPassword });
       }
       router.push("/dashboard");
     } catch (err) {

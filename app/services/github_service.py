@@ -1,5 +1,7 @@
 import logging
 import time
+
+from langfuse import observe
 from github import Github
 from github.GithubException import GithubException
 
@@ -18,6 +20,7 @@ def _client() -> Github:
     return Github()
 
 
+@observe(name="github.get_default_branch", as_type="span", capture_input=True, capture_output=False)
 def get_default_branch(owner: str, repo: str) -> str:
     started = time.perf_counter()
     log_event(logger, logging.INFO, "github.repo.started", owner=owner, repo=repo)
@@ -48,6 +51,7 @@ def get_default_branch(owner: str, repo: str) -> str:
     return gh_repo.default_branch
 
 
+@observe(name="github.get_repo_tree", as_type="span", capture_input=True, capture_output=False)
 def get_repo_tree(owner: str, repo: str, branch: str) -> tuple[list[dict], int, bool]:
     started = time.perf_counter()
     log_event(logger, logging.INFO, "github.tree.started", owner=owner, repo=repo, branch=branch)
@@ -92,6 +96,7 @@ def get_repo_tree(owner: str, repo: str, branch: str) -> tuple[list[dict], int, 
     return limited, total, truncated
 
 
+@observe(name="github.get_file_content", as_type="span", capture_input=True, capture_output=False)
 def get_file_content(owner: str, repo: str, path: str) -> str:
     started = time.perf_counter()
     log_event(logger, logging.DEBUG, "github.file.started", owner=owner, repo=repo, path=path)

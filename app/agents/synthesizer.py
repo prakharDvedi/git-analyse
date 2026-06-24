@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from langfuse import observe
+
 from app.agents.llm import call_llm_json
 from app.agents.state import ReviewState
+from app.core.langfuse import update_current_span
 from app.core.settings import get_settings
 
 settings = get_settings()
@@ -12,6 +15,7 @@ Produce a grounded, specific, non-generic report.
 Do not invent files or vulnerabilities not present in inputs."""
 
 
+@observe(name="synthesizer", as_type="span", capture_input=False, capture_output=False)
 def synthesizer_node(state: ReviewState) -> ReviewState:
     structure = state.get("structure_findings", {})
     security = state.get("security_findings", {})
@@ -29,6 +33,12 @@ def synthesizer_node(state: ReviewState) -> ReviewState:
 
     if llm_report and isinstance(llm_report, dict) and "overall_score" in llm_report:
         state["final_report"] = _normalize_report_shape(llm_report, files_analyzed)
+        update_current_span(
+            output={
+                "overall_score": state["final_report"].get("overall_score"),
+                "top_3_fixes": state["final_report"].get("top_3_fixes", []),
+            }
+        )
         return state
 
     # Safe deterministic fallback when LLM output is malformed/unavailable.
@@ -38,6 +48,12 @@ def synthesizer_node(state: ReviewState) -> ReviewState:
         quality=quality,
         testing=testing,
         files_analyzed=files_analyzed,
+    )
+    update_current_span(
+        output={
+            "overall_score": state["final_report"].get("overall_score"),
+            "top_3_fixes": state["final_report"].get("top_3_fixes", []),
+        }
     )
     return state
 

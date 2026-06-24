@@ -1,6 +1,9 @@
+from langfuse import observe
+
 from app.agents.state import ReviewState
 from app.services.github_service import get_repo_tree, get_file_content, get_default_branch
 from app.utils.repo_url import parse_github_repo_url
+from app.core.langfuse import update_current_span
 
 MAX_CONTENT_LENGTH = 3000
 BINARY_EXTENSIONS = {
@@ -36,6 +39,7 @@ def _is_binary_path(path: str) -> bool:
     return any(lower.endswith(ext) for ext in BINARY_EXTENSIONS)
 
 
+@observe(name="fetch_repo", as_type="span", capture_input=False, capture_output=False)
 def fetcher_node(state: ReviewState) -> ReviewState:
     repo_url = state["repo_url"]
 
@@ -58,4 +62,12 @@ def fetcher_node(state: ReviewState) -> ReviewState:
             file_map[path] = "[unable to read]"
 
     state["file_map"] = file_map
+    update_current_span(
+        output={
+            "owner": owner,
+            "repo": repo,
+            "branch": branch,
+            "files_loaded": len(file_map),
+        }
+    )
     return state

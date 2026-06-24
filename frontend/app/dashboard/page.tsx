@@ -72,6 +72,9 @@ export default function Dashboard() {
                 <div className="text-sm text-slate-600">
                   {a.status} · {new Date(a.created_at).toLocaleString()}
                 </div>
+                {a.error_message ? (
+                  <div className="mt-1 text-sm text-red-600">{a.error_message}</div>
+                ) : null}
               </Link>
             ))}
           </div>

@@ -1,6 +1,7 @@
 import os
 from typing import Optional
-
+# pyrefly: ignore [missing-import]
+from langfuse import observe
 import requests
 
 from app.core.settings import get_settings
@@ -22,6 +23,7 @@ def _resolve_max_tokens(max_tokens: Optional[int]) -> int:
     return settings.llm_max_tokens if max_tokens is None else max_tokens
 
 
+@observe(as_type="generation")
 def _call_huggingface_chat(
     prompt: str,
     system_prompt: Optional[str],
@@ -87,7 +89,7 @@ def _call_ollama_chat(
     message = data.get("message", {})
     return message.get("content", "")
 
-
+@observe()
 def call_llm(
     prompt: str,
     system_prompt: Optional[str] = None,
@@ -118,7 +120,7 @@ def call_llm(
         )
     raise ValueError(f"Unsupported llm_provider: {settings.llm_provider}")
 
-
+@observe()
 def call_llm_json(
     prompt: str,
     system_prompt: str,

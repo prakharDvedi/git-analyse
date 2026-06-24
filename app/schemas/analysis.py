@@ -12,6 +12,7 @@ class AnalysisSummary(BaseModel):
     id: int
     repo_url: str
     status: str
+    error_message: str | None = None
     created_at: datetime
 
 

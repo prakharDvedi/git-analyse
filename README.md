@@ -120,6 +120,7 @@ Each analysis returns a structured report like:
 - validated evidence-based findings schema
 - Dockerized backend and frontend
 - GitHub Actions CI for backend, frontend, and image builds
+- Langfuse tracing on the live analysis pipeline
 
 ## Local Setup
 
@@ -146,6 +147,10 @@ DATABASE_URL=sqlite:///./codereviewer.db
 APP_NAME=CodeReviewer
 
 GITHUB_TOKEN=your_github_token
+
+LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
+LANGFUSE_SECRET_KEY=your_langfuse_secret_key
+LANGFUSE_HOST=https://cloud.langfuse.com
 
 LLM_PROVIDER=huggingface
 LLM_MODEL=deepseek-ai/DeepSeek-V3-0324:novita

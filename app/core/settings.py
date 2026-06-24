@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     # HuggingFace
     hf_token: Optional[str] = None
 
+    # Langfuse
+    langfuse_secret_key: Optional[str] = None
+    langfuse_public_key: Optional[str] = None
+    langfuse_host: str = "https://cloud.langfuse.com"
+    
     # LLM (provider-agnostic defaults)
     llm_provider: str = "ollama"  # ollama | huggingface
     llm_model: str = "qwen2.5-coder:14b"

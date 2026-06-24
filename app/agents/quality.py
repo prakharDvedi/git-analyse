@@ -1,5 +1,8 @@
+from langfuse import observe
+
 from app.agents.state import ReviewState
 from app.agents.validation import run_validated_agent_call
+from app.core.langfuse import update_current_span
 from app.core.settings import get_settings
 
 settings = get_settings()
@@ -56,6 +59,7 @@ Rules:
 Return ONLY valid JSON."""
 
 
+@observe(name="quality_agent", as_type="span", capture_input=False, capture_output=False)
 def quality_agent(state: ReviewState) -> ReviewState:
     file_map = state["file_map"]
 
@@ -77,4 +81,5 @@ def quality_agent(state: ReviewState) -> ReviewState:
         }
 
     state["quality_findings"] = findings
+    update_current_span(output={"score": findings.get("score", 0), "flagged_files": findings.get("flagged_files", [])})
     return state

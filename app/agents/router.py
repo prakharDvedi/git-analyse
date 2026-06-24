@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from langfuse import observe
+
+from app.core.langfuse import update_current_span
 from app.agents.state import ReviewState
 
 
+@observe(name="route_agents", as_type="span", capture_input=False, capture_output=False)
 def router_node(state: ReviewState) -> ReviewState:
     file_map = state["file_map"]
     paths = list(file_map.keys())
@@ -34,6 +38,12 @@ def router_node(state: ReviewState) -> ReviewState:
 
     state["selected_agents"] = sorted(selected)
     state["router_notes"] = notes
+    update_current_span(
+        output={
+            "selected_agents": state["selected_agents"],
+            "router_notes": notes,
+        }
+    )
     return state
 
 
@@ -41,4 +51,3 @@ def route_selected_agents(state: ReviewState) -> list[str]:
     selected = state.get("selected_agents") or []
     # Always route at least one analysis node so the graph progresses.
     return selected or ["quality"]
-

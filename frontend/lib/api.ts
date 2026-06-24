@@ -33,6 +33,7 @@ export type AnalysisSummary = {
   id: number;
   repo_url: string;
   status: string;
+  error_message?: string | null;
   created_at: string;
 };
 

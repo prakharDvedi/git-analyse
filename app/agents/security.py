@@ -1,10 +1,13 @@
 import json
 import re
 
+from langfuse import observe
+
 from app.agents.llm import call_llm
 from app.agents.state import ReviewState
 from app.agents.tools import run_tool, tool_registry_description
 from app.agents.validation import run_validated_agent_call
+from app.core.langfuse import update_current_span
 from app.core.settings import get_settings
 
 settings = get_settings()
@@ -121,6 +124,7 @@ def _run_security_investigation(file_map: dict[str, str]) -> list[str]:
     return observations
 
 
+@observe(name="security_agent", as_type="span", capture_input=False, capture_output=False)
 def security_agent(state: ReviewState) -> ReviewState:
     file_map = state["file_map"]
     observations = _run_security_investigation(file_map)
@@ -145,4 +149,5 @@ def security_agent(state: ReviewState) -> ReviewState:
         }
 
     state["security_findings"] = findings
+    update_current_span(output={"score": findings.get("score", 0), "flagged_files": findings.get("flagged_files", [])})
     return state
